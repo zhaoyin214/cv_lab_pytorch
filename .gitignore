@@ -1,0 +1,9 @@
+.ipynb_checkpoints/
+.vscode/
+img/
+video/
+output/
+data/
+config/
+__pycache__/
+nncf/
