@@ -5,13 +5,13 @@ import numpy as np
 import os
 import xml.etree.ElementTree as ET
 
-from common.define import IMAGE_SIZE, LANDMARKS, TRANSFORM
+from common.define import ImageSize, Landmarks, Transformer
 from utils.landmark import norm_01
 
 class IBug300W(Dataset):
 
     def __init__(
-        self, root: Text, label_filepath: Text, transform: TRANSFORM=None,
+        self, root: Text, label_filepath: Text, transform: Transformer=None,
         padding: float=0.4
     ) -> None:
         self._root = root
@@ -90,7 +90,7 @@ class IBug300W(Dataset):
 
             w = box[2] - box[0] + 1
             h = box[3] - box[1] + 1
-            landmarks = norm_01(image_size=(h, w), landmarks=landmarks)
+            landmarks = norm_01(ImageSize=(h, w), landmarks=landmarks)
 
             self._landmark_list.append(landmarks)
 

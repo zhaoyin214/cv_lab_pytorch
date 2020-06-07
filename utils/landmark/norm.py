@@ -1,8 +1,8 @@
-from common.define import IMAGE_SIZE, LANDMARKS
+from common.define import ImageSize, Landmarks
 
-def norm_01(image_size: IMAGE_SIZE, landmarks: LANDMARKS) -> LANDMARKS:
+def norm_01(ImageSize: ImageSize, landmarks: Landmarks) -> Landmarks:
 
-    h, w = image_size
+    h, w = ImageSize
     for idx in range(len(landmarks) // 2):
         landmarks[2 * idx] /= w
         landmarks[2 * idx + 1] /= h

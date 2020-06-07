@@ -1,31 +1,12 @@
-#!/usr/bin/env python
-# -*- encoding: utf-8 -*-
-"""
-@file    :   transform.py
-@time    :   2020/06/05 18:59:57
-@author  :   XiaoY
-@version :   1.0
-@contact :   zhaoyin214@qq.com
-@license :   (c)copyright XiaoY
-@desc    :
-"""
-
-__author__ = "XiaoY"
-
-
+from typing import Dict
 import cv2
 import numpy as np
-import torch
-from typing import Dict, Tuple, Union
 
-from common.define import ImageSize, LandmarkSample
-from .base import Random
+from common.define import Image, ImageSize
+from utils.random import RandomChoice, RandomOrig
+from utils.image.size import convert_size
 
-__all__ = [
-    "Blur", "HorizontalFlip", "RandomCrop", "RandomRotate", "RandomScale", "Rescale", "ToTensor"
-]
-
-class Blur(Random):
+class Blur(object):
     """blurs an image with the given sigma and probability
 
     arguments:
@@ -33,81 +14,63 @@ class Blur(Random):
         ksize: kernel size
     """
     def __init__(self, prob: float=0.3, ksize: int=3) -> None:
-        super(Blur, self).__init__(prob)
+        self._random_choice = RandomChoice(prob)
         assert ksize % 2 == 1
         self._ksize = ksize
 
-    def __call__(self, sample: Dict) -> Dict:
-        image, landmarks = sample["image"], sample["landmarks"]
+    def __call__(self, image: Image) -> Image:
 
-        if self._choice():
+        self._random_choice.update()
+        if self._random_choice():
             image = cv2.blur(image, (self._ksize, self._ksize))
 
-        return {"image": image, "landmarks": landmarks}
+        return image
 
 
-class HorizontalFlip(Random):
+class HorizontalFlip(object):
     """Flips an input image and landmarks horizontally with a given probability"""
+    def __init__(self, prob: float=0.5) -> None:
+        self._random_choice = RandomChoice(prob)
 
-    def __call__(self, sample: LandmarkSample) -> LandmarkSample:
-        image, landmarks = sample["image"], sample["landmarks"].reshape(-1, 2)
+    def __call__(self, image: Image) -> Image:
 
-        if self._choice():
+        self._random_choice.update()
+        if self._random_choice():
             image = cv2.flip(image, 1)
-            landmarks = landmarks.reshape(-1, 2)
-            landmarks[:, 0] = 1. - landmarks[:, 0]
-            tmp = np.copy(landmarks[0])
-            landmarks[0] = landmarks[1]
-            landmarks[1] = tmp
 
-            tmp = np.copy(landmarks[3])
-            landmarks[3] = landmarks[4]
-            landmarks[4] = tmp
-
-        return {"image": image, "landmarks": landmarks}
+        return image
 
 
-class RandomCrop:
+class RandomCrop(object):
     """Makes a random crop from the source image with corresponding transformation of landmarks"""
-    def __init__(self, output_size):
-        assert isinstance(output_size, (int, tuple))
-        if isinstance(output_size, int):
-            self._output_size = (output_size, output_size)
-        else:
-            assert len(output_size) == 2
-            self._output_size = output_size
+    def __init__(self, output_size: ImageSize) -> None:
+        self._output_size = convert_size(output_size)
+        self._random_orig = RandomOrig()
 
-    def __call__(self, sample: LandmarkSample) -> LandmarkSample:
-        image, landmarks = sample["image"], sample["landmarks"].reshape(-1, 2)
+    def __call__(self, image: Image) -> Image:
 
         h, w = image.shape[:2]
         new_h, new_w = self._output_size
 
-        top = np.random.randint(0, h - new_h)
-        left = np.random.randint(0, w - new_w)
+        self._random_orig.update(x_range=w - new_w, y_range=h - new_h)
+        left, top = self._random_orig()
 
-        image = image[top: top + new_h,
-                      left: left + new_w]
+        image = image[
+            top : top + new_h, left : left + new_w, ...
+        ]
 
-        landmarks = landmarks - [left / float(w), top / float(h)]
-        for point in landmarks:
-            point[0] *= float(h) / new_h
-            point[1] *= float(w) / new_w
-
-        return {"image": image, "landmarks": landmarks}
+        return image
 
 
-class RandomRotate:
+class RandomRotate(object):
+    """Rotates an image around it's center by a randomly generated angle.
     """
-        Rotates an image around it"s center by a randomly generated angle.
-        Also performs the same transformation with landmark points.
-    """
-    def __init__(self, max_angle, p=.5):
+    def __init__(self, max_angle, p: float=0.5):
+        self._random_angle = ()
         self.max_angle = max_angle
         self.p = p
 
-    def __call__(self, sample: LandmarkSample) -> LandmarkSample:
-        image, landmarks = sample["image"], sample["landmarks"]
+    def __call__(self, image: Image) -> Image:
 
         if float(torch.FloatTensor(1).uniform_()) < self.p:
             angle = 2*(torch.FloatTensor(1).uniform_() - .5)*self.max_angle
@@ -127,7 +90,7 @@ class RandomScale:
         self.min_scale = min_scale
         self.p = p
 
-    def __call__(self, sample: LandmarkSample) -> LandmarkSample:
+    def __call__(self, image: Image) -> Image:
         image, landmarks = sample["image"], sample["landmarks"]
 
         if float(torch.FloatTensor(1).uniform_()) < self.p:
@@ -146,7 +109,7 @@ class Rescale:
     def __init__(self, output_size: ImageSize) -> None:
         self._output_size = output_size
 
-    def __call__(self, sample: LandmarkSample) -> LandmarkSample:
+    def __call__(self, image: Image) -> Image:
         image, landmarks = sample["image"], sample["landmarks"]
 
         h, w = image.shape[:2]
@@ -164,7 +127,7 @@ class Rescale:
 
 class Show:
     """Show image using opencv"""
-    def __call__(self, sample: LandmarkSample) -> LandmarkSample:
+    def __call__(self, image: Image) -> Image:
         image, landmarks = sample["image"].copy(), sample["landmarks"].reshape(-1, 2)
         h, w = image.shape[:2]
         for point in landmarks:
@@ -179,7 +142,7 @@ class ToTensor:
     def __init__(self, switch_rb=False):
         self.switch_rb = switch_rb
 
-    def __call__(self, sample: LandmarkSample) -> LandmarkSample:
+    def __call__(self, image: Image) -> Image:
         image, landmarks = sample["image"], sample["landmarks"]
         # swap color axis because
         # numpy image: H x W x C
