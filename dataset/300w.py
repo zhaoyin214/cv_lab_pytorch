@@ -90,7 +90,7 @@ class IBug300W(Dataset):
 
             w = box[2] - box[0] + 1
             h = box[3] - box[1] + 1
-            landmarks = norm_01(ImageSize=(h, w), landmarks=landmarks)
+            landmarks = norm_01(image_size=(w, h), landmarks=landmarks)
 
             self._landmark_list.append(landmarks)
 

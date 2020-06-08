@@ -1,5 +1,7 @@
 import cv2
 
+from .image import show_image
+
 def show_landmarks(image, landmarks):
 
     image = image.copy()
@@ -18,6 +20,4 @@ def show_landmarks(image, landmarks):
             lineType=cv2.FILLED
         )
 
-    cv2.imshow("landmarks", image)
-    if cv2.waitKey(0) & 0xFF == ord("q"):
-        cv2.destroyAllWindows()
+    show_image(image, "landmarks")
