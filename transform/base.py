@@ -8,6 +8,9 @@ from .random import RandomAngle, RandomChoice, RandomOrig, RandomScale
 #-- interfaces --#
 class ICrop(metaclass=ABCMeta):
     """the interface of the cropping operation"""
+    def __init__(self, output_size: ImageSize) -> None:
+        self._w, self._h = convert_size(output_size)
+
     @abstractmethod
     def _oper(self, sample: Any, orig: Point) -> Any:
         pass

@@ -1,74 +1,49 @@
-#!/usr/bin/env python
-# -*- encoding: utf-8 -*-
+from abc import ABCMeta, abstractmethod
 import cv2
 import numpy as np
 import torch
-from typing import Dict, Tuple, Union
+from typing import Dict
 
-from common.define import ImageSize, Sample
-import image
+from common.define import ImageSize, Landmarks, Sample, Point
+from transform import image
+from .base import \
+    ICrop, IRotate, IScale, \
+    RandomCropTransformer, RandomRotateTransformer, RandomScaleTransformer, \
+    RandomTransformer
 
 __all__ = [
     "RandomBlur", "RandomHorizontalFlip", "RandomCrop", "RandomRotate",
     "RandomScale", "Resize", "ToTensor"
 ]
 
-class IProcLandmarks(metaclass=ABCMeta):
 
+class ProcLandmarks(object):
+    """the template of landmark processors"""
     @abstractmethod
-    def __call__(self, image: Image) -> Image:
+    def _oper(self, landmarks: Landmarks, **kwarg) -> Landmarks:
         pass
-
-
-class ProcImage(object):
-
-    def __init__(self, op: IProcImage, **kwarg):
-        self._op = op
-        self._kwarg = kwarg
 
     def __call__(self, sample: Sample, **kwarg) -> Sample:
 
-        image = sample["image"]
-        image = self._op(image, **self._kwarg, **kwarg)
-        sample["image"] = image
+        landmarks = sample["landmarks"]
+        landmarks = self._oper(landmarks, **kwarg)
+        landmarks["landmarks"] = landmarks
 
-        return sample
-
-
-RandomBlur = image.RandomBlur
+        return landmarks
 
 
-class HorizontalFlip(Random):
-    """flips an input image and landmarks horizontally with a given probability"""
+class HorizontalFlip(ProcLandmarks):
+    """flip landmarks horizontally"""
+    def _oper(self, landmarks: Landmarks) -> Landmarks:
+        landmarks[: : 2] = 1 - landmarks[:, 0]
 
-    def __call__(self, sample: Sample) -> Sample:
-        image, landmarks = sample["image"], sample["landmarks"].reshape(-1, 2)
-
-        if self._choice():
-            image = cv2.flip(image, 1)
-            landmarks = landmarks.reshape(-1, 2)
-            landmarks[:, 0] = 1. - landmarks[:, 0]
-            tmp = np.copy(landmarks[0])
-            landmarks[0] = landmarks[1]
-            landmarks[1] = tmp
-
-            tmp = np.copy(landmarks[3])
-            landmarks[3] = landmarks[4]
-            landmarks[4] = tmp
-
-        return {"image": image, "landmarks": landmarks}
+        return landmarks
 
 
-class RandomCrop:
-    """Makes a random crop from the source image with corresponding transformation of landmarks"""
-    def __init__(self, output_size):
-        assert isinstance(output_size, (int, tuple))
-        if isinstance(output_size, int):
-            self._output_size = (output_size, output_size)
-        else:
-            assert len(output_size) == 2
-            self._output_size = output_size
-
+class Crop(ICrop, ProcLandmarks):
+    """make a crop from the landmarks"""
+    def _oper(self, landmarks: Landmarks, orig: Point) -> Landmarks:
+        pass
     def __call__(self, sample: Sample) -> Sample:
         image, landmarks = sample["image"], sample["landmarks"].reshape(-1, 2)
 
@@ -87,6 +62,30 @@ class RandomCrop:
             point[1] *= float(w) / new_w
 
         return {"image": image, "landmarks": landmarks}
+
+
+RandomBlur = image.RandomBlur
+
+
+class RandomHorizontalFlip(RandomTransformer):
+    """flip an input image and landmarks horizontally with a given probability
+    """
+    def __init__(self, prob: float=0.5) -> None:
+        super(RandomHorizontalFlip, self).__init__(prob)
+        flip_image = image.HorizontalFlip()
+        self.add_op(flip_image)
+        flip_lanmarks = HorizontalFlip()
+        self.add_op(flip_lanmarks)
+
+
+class RandomCrop_(RandomCropTransformer):
+    """make a random crop from the source image with corresponding transformation of landmarks"""
+    def __init__(self, output_size: ImageSize) -> None:
+        super(RandomCrop_, self).__init__(output_size)
+        crop_image = image.Crop(output_size)
+        self.add_op(crop_image)
+        crop_lanmarks = Crop()
+        self.add_op(crop_lanmarks)
 
 
 class RandomRotate:
