@@ -1,33 +1,35 @@
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
+from torchvision import transforms
+from typing import Tuple
 import cv2
 import numpy as np
 import torch
 
-from common.define import Image, ImageSize, Sample, Point
-from utils.image.size import convert_resize
+from common.define import Box, Image, ImageSize, Sample, TensorImage
+from utils.image import crop as image_crop
+from utils.image import convert_resize
 from utils.visual import show_image
-from .base import \
-    ICrop, IRotate, IScale, \
+from .base import IProc, \
     RandomCropTransformer, RandomRotateTransformer, RandomScaleTransformer, \
     RandomTransformer
 from .random import RandomChoice, RandomOrig
 
 __all__ = [
     "RandomBlur", "RandomHorizontalFlip", "RandomCrop", "RandomRotate",
-    "RandomScale", "Resize", "ToTensor"
+    "RandomScale", "Resize", "ToTensor", "Normalize"
 ]
 
 
-class ProcImage(metaclass=ABCMeta):
+class ProcImage(IProc):
     """the template of image processors"""
     @abstractmethod
-    def _oper(self, image: Image, **kwarg) -> Image:
+    def _oper(self, image: Image, *args, **kwargs) -> Image:
         pass
 
-    def __call__(self, sample: Sample, **kwarg) -> Sample:
+    def __call__(self, sample: Sample, *args, **kwargs) -> Sample:
 
         image = sample["image"]
-        image = self._oper(image, **kwarg)
+        image = self._oper(image, *args, **kwargs)
         sample["image"] = image
 
         return sample
@@ -53,18 +55,15 @@ class HorizontalFlip(ProcImage):
         return cv2.flip(image, flipCode=1)
 
 
-class Crop(ICrop, ProcImage):
+class Crop(ProcImage):
     """make a crop from the source image"""
-    def _oper(self, image: Image, orig: Point) -> Image:
-        left, top = orig
-        image = image[
-            top : top + self._h, left : left + self._w, :
-        ]
+    def _oper(self, image: Image, roi: Box) -> Image:
+        image = image_crop(image, roi)
 
         return image
 
 
-class Rotate(IRotate, ProcImage):
+class Rotate(ProcImage):
     """rotate an image around it's center by a given angle"""
     def _oper(self, image: Image, angle: float) -> Image:
         h, w = image.shape[:2]
@@ -78,7 +77,23 @@ class Rotate(IRotate, ProcImage):
         return image
 
 
-class Scale(IScale, ProcImage):
+class Resize(ProcImage):
+    """resize an image"""
+    def __init__(self, output_size: ImageSize) -> None:
+        self._output_size = output_size
+
+    def _oper(self, image: Image) -> Image:
+
+        h, w = image.shape[:2]
+        output_size = convert_resize(
+            input_size=(h, w), output_size=self._output_size
+        )
+        image = cv2.resize(image, output_size)
+
+        return image
+
+
+class Scale(ProcImage):
     """perform scale"""
     def _oper(self, image: Image, scale: float) -> Image:
         h, w = image.shape[:2]
@@ -88,6 +103,44 @@ class Scale(IScale, ProcImage):
         image = cv2.warpAffine(
             src=image, M=scale_mat, dsize=(w, h), flags=cv2.INTER_LANCZOS4
         )
+
+        return image
+
+
+class Show(object):
+    """show image using opencv"""
+    def __call__(self, sample: Sample) -> Sample:
+        show_image(sample["image"], win_name="")
+        return sample
+
+
+class ToTensor(ProcImage):
+    """convert a ndarray to a tensor with the range of [0, 1]"""
+    def __init__(self, switch_rb: bool=True) -> None:
+        self._switch_rb = switch_rb
+        self._to_tensor = transforms.ToTensor()
+
+    def _oper(self, image: Image) -> TensorImage:
+        # numpy image: H x W x C
+        # torch image: C X H X W
+        if self._switch_rb:
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        image = self._to_tensor(image)
+
+        return image
+
+
+class Normalize(ProcImage):
+    """normalization with a give mean and std (R, G, B)"""
+    def __init__(
+        self,
+        mean: Tuple=(0.485, 0.456, 0.406),
+        std: Tuple=(0.229, 0.224, 0.225)
+    ) -> None:
+        self._normalizer = transforms.Normalize(mean, std)
+
+    def _oper(self, image: TensorImage) -> TensorImage:
+        image = self._normalizer(image)
 
         return image
 
@@ -113,7 +166,7 @@ class RandomCrop_(RandomCropTransformer):
     """make a random crop from the source image"""
     def __init__(self, output_size: ImageSize) -> None:
         super(RandomCrop_, self).__init__(output_size)
-        crop = Crop(output_size)
+        crop = Crop()
         self.add_op(crop)
 
 
@@ -134,7 +187,9 @@ class RandomRotate_(RandomRotateTransformer):
 
 
 class RandomRotate(RandomTransformer):
-    """rotate an image around it's center by a random angl with a given probability"""
+    """rotate an image around it's center by a random angle
+       with a given probability
+    """
     def __init__(self, max_angle: float=30, prob: float=0.5) -> None:
         super(RandomRotate, self).__init__(prob)
         rotate = RandomRotate_(max_angle)
@@ -159,43 +214,6 @@ class RandomScale(RandomTransformer):
         self.add_op(scale)
 
 
-class Resize(ProcImage):
-    """resize an image"""
-    def __init__(self, output_size: ImageSize) -> None:
-        self._output_size = output_size
-
-    def _oper(self, image: Image) -> Image:
-
-        h, w = image.shape[:2]
-        output_size = convert_resize(
-            input_size=(h, w), output_size=self._output_size
-        )
-        image = cv2.resize(image, output_size)
-
-        return image
-
-
-class Show(ProcImage):
-    """show image using opencv"""
-    def _oper(self, image: Image) -> Image:
-        show_image(image, win_name="")
-        return image
-
-
-class ToTensor(ProcImage):
-    """convert a ndarray to a tensor with the range of [0, 1]"""
-    def __init__(self, switch_rb: bool=False) -> None:
-        self._switch_rb = switch_rb
-
-    def _oper(self, image: Image) -> Image:
-        # numpy image: H x W x C
-        # torch image: C X H X W
-        if self._switch_rb:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        image = image.transpose((2, 0, 1))
-        return torch.from_numpy(image).type(torch.FloatTensor) / 255
-
-
 if __name__ == "__main__":
 
     image = cv2.imread("./img/31.jpg")
@@ -210,8 +228,9 @@ if __name__ == "__main__":
     show_image(flip(sample)["image"])
 
     # crop
-    crop = Crop(output_size=400)
-    show_image(crop(sample, orig=(200, 50))["image"])
+    crop = Crop()
+    show_image(crop(sample, roi=(200, 50, 499, 349))["image"])
+    print(sample["image"].shape)
 
     # rotate
     rot = Rotate()
@@ -224,10 +243,16 @@ if __name__ == "__main__":
     # show
     Show()(sample)
 
-    # tensor
+    # to tensor
     tensor = ToTensor()
     sample = tensor(sample)
     print(type(sample["image"]))
+
+    # normalize
+    normalizer = Normalize()
+    sample = normalizer(sample)
+    print(sample["image"])
+
 
     # random
     image = cv2.imread("./img/31.jpg")
@@ -241,6 +266,7 @@ if __name__ == "__main__":
 
     random_crop_ = RandomCrop_((500, 300))
     show_image(random_crop_(sample)["image"])
+    print(sample["image"].shape)
 
     random_crop = RandomCrop((500, 300))
     show_image(random_crop(sample)["image"])

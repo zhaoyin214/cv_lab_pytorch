@@ -2,31 +2,19 @@ from abc import ABCMeta, abstractmethod
 from typing import Any, Callable, List
 
 from common.define import ImageSize, Point, Sample
-from utils.image.size import convert_size
+from utils.image import convert_size
+from utils.box import BoxWrapper
 from .random import RandomAngle, RandomChoice, RandomOrig, RandomScale
 
-#-- interfaces --#
-class ICrop(metaclass=ABCMeta):
-    """the interface of the cropping operation"""
-    def __init__(self, output_size: ImageSize) -> None:
-        self._w, self._h = convert_size(output_size)
 
+class IProc(metaclass=ABCMeta):
+    """the template of processors"""
     @abstractmethod
-    def _oper(self, sample: Any, orig: Point) -> Any:
+    def _oper(self, *args, **kwargs) -> Any:
         pass
 
-
-class IScale(metaclass=ABCMeta):
-    """the interface of the scaling operation"""
     @abstractmethod
-    def _oper(self, sample: Any, scale: float) -> Any:
-        pass
-
-
-class IRotate(metaclass=ABCMeta):
-    """the interface of the rotating operation"""
-    @abstractmethod
-    def _oper(self, sample: Any, angle: float) -> Any:
+    def __call__(self, sample: Sample, *args, **kwargs) -> Sample:
         pass
 
 
@@ -63,27 +51,32 @@ class RandomTransformer(BaseTransformer):
 
 class RandomCropTransformer(BaseTransformer):
     """
-    op: ICrop
+    op: Crop
     """
     def __init__(self, output_size: ImageSize) -> None:
         super(RandomCropTransformer, self).__init__()
         self._random_orig = RandomOrig()
-        self._w, self._h = convert_size(output_size)
+        self._output_w, self._output_h = convert_size(output_size)
+        self._box_wrapper = BoxWrapper()
 
     def __call__(self, sample: Sample) -> Sample:
         h, w = sample["image"].shape[: 2]
-        x_range = max(1, w - self._w)
-        y_range = max(1, h - self._h)
+        x_range = max(1, w - self._output_w)
+        y_range = max(1, h - self._output_h)
         x, y = self._random_orig(x_range, y_range)
         for op in self._ops:
-            sample = op(sample, orig=(x, y))
+            self._box_wrapper.set_box_ltwh(
+                x, y, self._output_w, self._output_h
+            )
+
+            sample = op(sample, roi=self._box_wrapper.box)
 
         return sample
 
 
 class RandomRotateTransformer(BaseTransformer):
     """
-    op: IRotate
+    op: Rotate
     """
     def __init__(self, max_angle: float) -> None:
         super(RandomRotateTransformer, self).__init__()
@@ -100,7 +93,7 @@ class RandomRotateTransformer(BaseTransformer):
 
 class RandomScaleTransformer(BaseTransformer):
     """
-    op: IScale
+    op: Scale
     """
     def __init__(self, min_scale: float, max_scale: float) -> None:
         super(RandomScaleTransformer, self).__init__()
