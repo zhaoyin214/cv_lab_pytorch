@@ -27,5 +27,27 @@ def relu():
     """relu inplace"""
     return nn.ReLU(inplace=True)
 
+def leaky_relu(negative_slope: float=0.1):
+    """leaky relu inplace"""
+    return nn.LeakyReLU(negative_slope=negative_slope, inplace=True)
+
+def p_relu(num_parameters: int=1):
+    return nn.PReLU(num_parameters=num_parameters)
+
 def batchnorm(planes: int):
     return nn.BatchNorm2d(num_features=planes)
+
+def conv3x3_block(
+    in_planes: int, out_planes: int,
+    padding: int=1, bn=True, dilation=1, stride=1, bias=True):
+    modules = [
+        conv3x3(
+            in_planes, out_planes,
+            stride=stride, padding=padding, dilation=dilation, bias=bias
+        )
+    ]
+    if bn:
+        modules.append(batchnorm(out_planes))
+    modules.append(relu())
+    return nn.Sequential(*modules)
+

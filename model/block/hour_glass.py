@@ -1,11 +1,11 @@
-from .basic_convs import conv3x3
+from ..base import conv3x3
 from torch import nn
 import torch
 
 
-class HourGlass(nn.Module):
+class HourGlassBlock(nn.Module):
     def __init__(self, block, num_modules, depth, num_features):
-        super(HourGlass, self).__init__()
+        super(HourGlassBlock, self).__init__()
         self.num_modules = num_modules
         self.depth = depth
         self.features = num_features

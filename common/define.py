@@ -3,6 +3,7 @@ from torchvision.transforms import Compose
 import numpy as np
 import torch
 
+# dataset
 ImageSize = Union[int, Tuple]   # [width, height]
 Image = np.ndarray              # image, 2-dim or 3-dim array
 TensorImage = torch.Tensor
@@ -12,3 +13,6 @@ Sample = Dict                   # {"image": image, "landmarks": landmarks, "bbox
 
 Point = List[int]               # [x, y]
 Box = np.ndarray                # 1-dim array with dtype = int, [xmin, ymin, xmax, ymax]
+
+# net
+Module = torch.nn.Module

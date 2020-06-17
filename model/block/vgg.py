@@ -1,4 +1,4 @@
-from .base import batchnorm, conv3x3, maxpool2x2, relu
+from ..base import batchnorm, conv3x3, maxpool2x2, relu
 from torch import nn
 from typing import List
 
