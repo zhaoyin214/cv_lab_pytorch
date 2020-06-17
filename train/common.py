@@ -145,8 +145,9 @@ class BaseTrainer(object):
         self._metric_manager.clear_best_metric()
 
         for epoch in range(self._num_epochs):
+
+            self._logger.info("-" * 30)
             self._logger.info("epoch {}/{}".format(epoch, self._num_epochs - 1))
-            self._logger.info("-" * 10)
 
             # each epoch has a training and validation phase
             for phase in self._phase_list:
