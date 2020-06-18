@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod, abstractproperty
-from typing import Dict, Text
+from typing import Dict, List, Text
 import sys
 import torch
 
@@ -55,10 +55,11 @@ class MetricManager(object):
         self._metric_name = None
         self._best_metric = None
         self._is_max_metric = None
-        self._epoch_stats = None
+        self._epoch_stats = {}
 
     def add_stat(self, name: Text, stat: BaseMetric) -> None:
         self._stat_map[name] = stat
+        self._epoch_stats[name] = []
 
     def zero_stats(self) -> None:
         for key in self._stat_map.keys():
@@ -74,7 +75,7 @@ class MetricManager(object):
 
     def is_best(self) -> bool:
 
-        metric = self._epoch_stats[self._metric_name]
+        metric = self._epoch_stats[self._metric_name][-1]
         ret = False
         if self.is_max_metric and (self._best_metric < metric):
             self._best_metric = metric
@@ -93,12 +94,13 @@ class MetricManager(object):
             self._stat_map[key].calc_running_stat(preds, labels, loss)
 
     def epoch_call(self, size: int) -> Dict[Text, float]:
-        self._epoch_stats = {
+        ret = {
             key: self._stat_map[key].calc_epoch_stat(size)
             for key in self._stat_map.keys()
         }
-
-        return self._epoch_stats
+        for key in self._stat_map.keys():
+            self._epoch_stats[key].append(ret[key])
+        return ret
 
     @property
     def is_max_metric(self) -> bool:
@@ -111,3 +113,7 @@ class MetricManager(object):
     @property
     def metric_name(self) -> Text:
         return self._metric_name
+
+    @property
+    def epoch_stat(self) -> Dict[Text, List]:
+        return self._epoch_stats

@@ -1,6 +1,5 @@
 from typing import Text
 import logging
-import logging.handlers
 
 class Logger(object):
 
@@ -17,21 +16,21 @@ class Logger(object):
         self,
         filename: Text,
         level: Text="info",
-        fmt: Text="%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s"
+        fmt: Text="%(asctime)s - %(levelname)s: %(message)s"
     ) -> None:
 
         # get log file
         self._logger = logging.getLogger(filename)
         self._logger.setLevel(self._level_map.get(level))
+        fmt = logging.Formatter(fmt)
 
         # output to shell
         sh = logging.StreamHandler()
-        fmt = logging.Formatter(fmt)
         sh.setFormatter(fmt)
 
         # output to file
-        th = logging.handlers.TimedRotatingFileHandler(
-            filename=filename
+        th = logging.FileHandler(
+            filename=filename, mode="w"
         )
         th.setFormatter(fmt)
 

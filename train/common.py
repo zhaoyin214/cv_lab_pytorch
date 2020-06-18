@@ -34,6 +34,7 @@ class BaseTrainer(object):
         scheduler: LRScheduler=None,
         datasets: Dict[Text, Dataset]=None,
         metric_manager: MetricManager=None,
+        model_name: Text="",
         log_filename: Text="training_log",
         save_dir: Text="./output",
         num_workers: int=2,
@@ -47,9 +48,14 @@ class BaseTrainer(object):
         self._criterion = criterion
         self._scheduler = scheduler
         self._metric_manager = metric_manager
+        self._model_name = model_name
         self._save_dir = save_dir
         log_filename = os.path.join(
-            self._save_dir, "log/{}.log".format(log_filename)
+            self._save_dir, "log/{}_{}_{}.log".format(
+                model_name,
+                log_filename,
+                time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+            )
         )
         self._logger = Logger(log_filename, level="info")
 
@@ -131,6 +137,9 @@ class BaseTrainer(object):
         assert isinstance(self._datasets["val"], Dataset), \
             self._logger.error("error: the val dataset is not availabe.")
 
+    def _fetch_input_label(self, samples):
+        return samples
+
     def train(
         self,
     ) -> Module:
@@ -153,8 +162,6 @@ class BaseTrainer(object):
             for phase in self._phase_list:
 
                 if phase == "train":
-                    if self._scheduler:
-                        self._scheduler.step()
                     # set model to training mode
                     self._model.train()
                 else:
@@ -164,7 +171,8 @@ class BaseTrainer(object):
                 self._metric_manager.zero_stats()
 
                 # Iterate over data.
-                for inputs, labels in self._data_loaders[phase]:
+                for samples in self._data_loaders[phase]:
+                    inputs, labels = self._fetch_input_label(samples)
                     inputs = inputs.to(self._device)
                     labels = labels.to(self._device)
 
@@ -182,6 +190,8 @@ class BaseTrainer(object):
                         if phase == "train":
                             loss.backward()
                             self._optimizer.step()
+                            if self._scheduler:
+                                self._scheduler.step()
 
                     # statistics
                     self._metric_manager.running_call(preds, labels, loss)
@@ -204,11 +214,15 @@ class BaseTrainer(object):
                             self._model.state_dict(),
                             os.path.join(
                                 self._save_dir, "model",
-                                "best_model-epoch_{}{}.pth".format(epoch, log_info)
+                                "best_{}-epoch_{}{}.pth".format(
+                                    self._model_name if self._model_name else "model",
+                                    epoch, log_info
+                                )
                             )
                         )
 
         time_elapsed = time.time() - since
+        self._logger.info("-" * 30)
         self._logger.info("training complete in {:.0f}m {:.0f}s".format(
             time_elapsed // 60, time_elapsed % 60))
         self._logger.info("best val {}: {:4f}".format(
@@ -230,7 +244,8 @@ class RegTrainer(BaseTrainer):
 if __name__ == "__main__":
 
     from torchvision import datasets, transforms
-    from torchvision.models import resnet18
+    from torchvision.models import resnet18, resnet34
+    from torch.optim.lr_scheduler import StepLR
     import os
 
     from .metric import MetricAcc, MetricLoss
@@ -257,12 +272,13 @@ if __name__ == "__main__":
         ) for x in ["train", "val"]
     }
 
-    net = resnet18()
+    net = resnet34(pretrained=True)
     in_planes = net.fc.in_features
     net.fc = torch.nn.Linear(in_planes, 2)
     # net[0] = torch.nn.Conv2d(1, 64, kernel_size=(3, 3), padding=(1, 1), bias=False)
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(net.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.0005)
+    exp_lr_scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
 
     metric_manager = MetricManager()
     metric_manager.add_stat("acc", MetricAcc())
@@ -273,8 +289,16 @@ if __name__ == "__main__":
         net,
         optimizer,
         criterion,
+        scheduler=exp_lr_scheduler,
         datasets=dataset,
-        metric_manager=metric_manager
+        metric_manager=metric_manager,
+        model_name="resnet34",
+        num_epochs=100,
+        batch_size=512,
+        num_workers=2
     )
 
     net = trainer.train()
+
+    epoch_stats = metric_manager.epoch_stat
+    print(epoch_stats)
