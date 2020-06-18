@@ -9,7 +9,7 @@ from common.define import Box, ImageSize, Landmarks, Sample, Transformer
 from utils.landmark import LandmarksWrapper
 from utils.image import crop
 
-class DatasetLandmarks(Dataset, metaclass=ABCMeta):
+class LandmarkDataset(Dataset, metaclass=ABCMeta):
 
     def __init__(
         self, root: Text, label_filepath: Text, transform: Transformer=None,

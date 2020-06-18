@@ -51,3 +51,4 @@ def conv3x3_block(
     modules.append(relu())
     return nn.Sequential(*modules)
 
+def init_

@@ -2,9 +2,9 @@ from torch import nn
 import math
 
 from ..base import batchnorm, conv1x1, conv3x3_block, maxpool2x2, relu
-from ..common import IModel
+from ..common import BaseModel
 
-class LandmarkNet(IModel):
+class LandNet(BaseModel):
     """this is a baseline model referring to
        the intel regression net of 5 landmarks
     """
@@ -15,7 +15,7 @@ class LandmarkNet(IModel):
         input_res: int=256,
         activation: nn.Module=relu
     ) -> None:
-        super(LandmarkNet, self).__init__()
+        super(LandNet, self).__init__()
         self.input_res = input_res
 
         self.bn_input = batchnorm(3)
@@ -76,5 +76,5 @@ class LandmarkNet(IModel):
         pass
 
 if __name__ == "__main__":
-    landnet = LandmarkNet(input_res=448)
+    landnet = LandNet(input_res=448)
     print(landnet)

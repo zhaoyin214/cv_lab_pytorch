@@ -234,13 +234,6 @@ class BaseTrainer(object):
         return self._model
 
 
-class RegTrainer(BaseTrainer):
-
-    def __init__(self, *args, **kwargs):
-        super(RegTrainer, self).__init__(*args, **kwargs)
-        self._stat_terms = ["acc", ]
-
-
 if __name__ == "__main__":
 
     from torchvision import datasets, transforms

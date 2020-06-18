@@ -3,9 +3,9 @@ import numpy as np
 import os
 import xml.etree.ElementTree as ET
 
-from .landmark import DatasetLandmarks
+from .landmark import LandmarkDataset
 
-class IBug300W(DatasetLandmarks):
+class IBug300W(LandmarkDataset):
 
     def _parser(self, filepath: Text) -> None:
         """bboxes, landmarks
