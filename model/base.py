@@ -51,4 +51,21 @@ def conv3x3_block(
     modules.append(relu())
     return nn.Sequential(*modules)
 
-def init_
+def init_weights(net: nn.Module) -> None:
+
+    for m in net.modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_normal_(
+                tensor=m.weight,
+                mode="fan_out",
+                nonlinearity="relu"
+            )
+            if m.bias is not None:
+                nn.init.constant_(tensor=m.bias, val=0)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(tensor=m.weight, val=1)
+            nn.init.constant_(tensor=m.bias, val=0)
+        elif isinstance(m, nn.Linear):
+            nn.init.normal_(tensor=m.weight, mean=0, std=0.01)
+            nn.init.constant_(tensor=m.bias, val=0)
+

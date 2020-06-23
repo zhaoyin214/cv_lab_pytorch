@@ -54,7 +54,6 @@ class MetricManager(object):
         self._stat_map = {}
         self._metric_name = None
         self._best_metric = None
-        self._is_max_metric = None
         self._epoch_stats = {}
 
     def add_stat(self, name: Text, stat: BaseMetric) -> None:
@@ -104,7 +103,7 @@ class MetricManager(object):
 
     @property
     def is_max_metric(self) -> bool:
-        return self._stat_map[self._metric_name].is_max_obj
+        return self._stat_map[self._metric_name].is_max_obj()
 
     @property
     def best_metric(self) -> bool:

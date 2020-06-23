@@ -1,5 +1,36 @@
+from torch import nn
 from torchvision import models
 from typing import Text
+
+
+class BackBone(object):
+
+    def __init__(self, backbone: nn.Module) -> None:
+        self._backbone = backbone
+
+    @property
+    def output_layer_name(self, net: nn.Module):
+        return list(self._backbone.name_children())[-1][0]
+
+    @property
+    def net(self) -> nn.Module:
+        return self._backbone
+
+    def modify_output_layer(self, out_planes) -> None:
+        last_layer_name, last_layer = list(self._backbone.named_children())[-1]
+        in_planes = last_layer.in_features
+
+        if isinstance(last_layer, nn.Linear):
+            setattr(
+                self._backbone,
+                last_layer_name,
+                nn.Linear(
+                    in_features=in_planes,
+                    out_features=out_planes,
+                    bias=False
+                )
+            )
+
 
 class BackBoneFactory(object):
 
@@ -24,11 +55,26 @@ class BackBoneFactory(object):
     ]
 
     def __call__(self, name: Text):
-        assert name in self._backbone_list, "error: {} is not available".format(name)
-        return getattr(models, name)(pretrained=True)
+        assert name in self._backbone_list, \
+            "error: {} is not available".format(name)
+
+        return self._create_backbone(name)
+
+    def _create_backbone(self, name: Text) -> BackBone:
+        backbone = BackBone(
+            getattr(models, name)(pretrained=True)
+        )
+
+        return backbone
+
 
 if __name__ == "__main__":
 
-    backbone = BackBoneFactory()
+    backbone_factory = BackBoneFactory()
     for net in BackBoneFactory._backbone_list:
-        print(backbone(net))
+        backbone = backbone_factory(net)
+        print(backbone.net)
+
+    backbone = backbone_factory("resnet18")
+    backbone.modify_output_layer(68)
+    print(backbone.net)
