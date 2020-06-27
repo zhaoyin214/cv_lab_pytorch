@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod, abstractproperty
-from typing import Dict, List, Text
+from typing import Dict, List, Text, Union
 import sys
 import torch
 
@@ -54,11 +54,14 @@ class MetricManager(object):
         self._stat_map = {}
         self._metric_name = None
         self._best_metric = None
-        self._epoch_stats = {}
+        self._logs = {
+            x: {} for x in ["train", "val", "test"]
+        }
 
     def add_stat(self, name: Text, stat: BaseMetric) -> None:
         self._stat_map[name] = stat
-        self._epoch_stats[name] = []
+        for key in self._logs.keys():
+            self._logs[key][name] = []
 
     def zero_stats(self) -> None:
         for key in self._stat_map.keys():
@@ -74,7 +77,7 @@ class MetricManager(object):
 
     def is_best(self) -> bool:
 
-        metric = self._epoch_stats[self._metric_name][-1]
+        metric = self._logs["val"][self._metric_name][-1]
         ret = False
         if self.is_max_metric and (self._best_metric < metric):
             self._best_metric = metric
@@ -92,13 +95,15 @@ class MetricManager(object):
         for key in self._stat_map.keys():
             self._stat_map[key].calc_running_stat(preds, labels, loss)
 
-    def epoch_call(self, size: int) -> Dict[Text, float]:
+    def epoch_call(
+        self, size: int, phase: Union["train", "val", "test"]
+    ) -> Dict[Text, float]:
         ret = {
             key: self._stat_map[key].calc_epoch_stat(size)
             for key in self._stat_map.keys()
         }
         for key in self._stat_map.keys():
-            self._epoch_stats[key].append(ret[key])
+            self._logs[phase][key].append(ret[key])
         return ret
 
     @property
@@ -114,5 +119,9 @@ class MetricManager(object):
         return self._metric_name
 
     @property
-    def epoch_stat(self) -> Dict[Text, List]:
-        return self._epoch_stats
+    def logs(self) -> Dict[Text, List]:
+        return self._logs
+
+    def get_log(self, phase: Union["train", "val", "test"]) -> Dict:
+        return self._logs[phase]
+

@@ -44,12 +44,18 @@ if __name__ == "__main__":
             ToTensor(),
             Normalize()
         ]),
+        "test": Compose([
+            Resize((224, 224)),
+            ToTensor(),
+            Normalize()
+        ]),
     }
-    for phase in ["train", "val"]:
+    for phase in ["train", "val", "test"]:
         datasets[phase].transform = data_transforms[phase]
 
+    backbone_ = "resnet18"
     # backbone_ = "resnet50"
-    backbone_ = "resnet101"
+    # backbone_ = "resnet101"
     backbone = BackBoneFactory()(backbone_)
     net = BaselineNet(backbone)
     print(net)
@@ -71,11 +77,12 @@ if __name__ == "__main__":
         metric_manager=metric_manager,
         model_name="landmark_baseline_{}".format(backbone_),
         num_epochs=100,
-        batch_size=128,
+        batch_size=256,
         num_workers=8
     )
 
     net = trainer.train()
+    net = trainer.test()
 
-    epoch_stats = metric_manager.epoch_stat
-    print(epoch_stats)
+    logs = metric_manager.logs
+    print(logs)

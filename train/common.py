@@ -63,6 +63,7 @@ class BaseTrainer(object):
         self._num_epochs = num_epochs
         self._batch_size = batch_size
         self.device = device
+        self._is_test = False
 
         if datasets:
             self.set_dataset(datasets)
@@ -91,6 +92,8 @@ class BaseTrainer(object):
 
     def set_dataset(self, datasets: Dict[Text, Dataset]) -> None:
         self._datasets = datasets
+
+        # training and val
         self._data_loaders = {
             x: torch.utils.data.DataLoader(
                 dataset=datasets[x],
@@ -99,6 +102,16 @@ class BaseTrainer(object):
                 num_workers=self._num_workers
             ) for x in self._phase_list
         }
+
+        # test
+        if datasets.get("test"):
+            self._data_loaders["test"] = torch.utils.data.DataLoader(
+                dataset=datasets["test"],
+                batch_size=self._batch_size,
+                shuffle=False,
+                num_workers=self._num_workers
+            )
+            self._is_test = True
 
     def set_metric_manager(self, metric_manager: MetricManager) -> None:
         self._metric_manager = metric_manager
@@ -140,13 +153,13 @@ class BaseTrainer(object):
     def _fetch_input_label(self, samples):
         return samples
 
-    def train(
-        self,
-    ) -> Module:
+    def train(self) -> Module:
+        """train and validation
+        only best model saved in validation phases
+        """
 
         self._check()
         self._model.to(self.device)
-        dataset_sizes = {x: len(self._datasets[x]) for x in self._phase_list}
 
         since = time.time()
 
@@ -161,42 +174,7 @@ class BaseTrainer(object):
             # each epoch has a training and validation phase
             for phase in self._phase_list:
 
-                if phase == "train":
-                    # set model to training mode
-                    self._model.train()
-                else:
-                    # set model to evaluate mode
-                    self._model.eval()
-
-                self._metric_manager.zero_stats()
-
-                # Iterate over data.
-                for samples in self._data_loaders[phase]:
-                    inputs, labels = self._fetch_input_label(samples)
-                    inputs = inputs.to(self._device)
-                    labels = labels.to(self._device)
-
-                    # zero the parameter gradients
-                    self._optimizer.zero_grad()
-
-                    # forward
-                    # track history if only in train
-                    with torch.set_grad_enabled(phase == "train"):
-                        outputs = self._model(inputs)
-                        _, preds = torch.max(outputs, 1)
-                        loss = self._criterion(outputs, labels)
-
-                        # backward + optimize only if in training phase
-                        if phase == "train":
-                            loss.backward()
-                            self._optimizer.step()
-                            if self._scheduler:
-                                self._scheduler.step()
-
-                    # statistics
-                    self._metric_manager.running_call(preds, labels, loss)
-
-                epoch_stats = self._metric_manager.epoch_call(dataset_sizes[phase])
+                epoch_stats = self._run_iter(phase)
 
                 log_info = "[{}] ".format(phase)
                 for key, value in epoch_stats.items():
@@ -233,6 +211,73 @@ class BaseTrainer(object):
 
         return self._model
 
+    def test(self) -> None:
+        """test
+        being called only once after training
+        """
+
+        assert self._is_test, ValueError("error: test dataset is not available.")
+
+        self._logger.info("-" * 30)
+        self._logger.info("-- test phase --")
+        phase = "test"
+        since = time.time()
+
+        epoch_stats = self._run_iter(phase)
+        log_info = "[{}] ".format(phase)
+        for key, value in epoch_stats.items():
+            log_info += "{}: {:.4f}, ".format(key, value)
+        self._logger.info(log_info)
+
+        time_elapsed = time.time() - since
+        self._logger.info("test complete in {:.0f}m {:.0f}s".format(
+            time_elapsed // 60, time_elapsed % 60))
+
+        return None
+
+    def _run_iter(self, phase: Text) -> Dict[Text, float]:
+
+        dataset_sizes = {x: len(self._datasets[x]) for x in self._datasets.keys()}
+
+        if phase == "train":
+            # set model to training mode
+            self._model.train()
+        else:
+            # set model to evaluate mode
+            self._model.eval()
+
+        self._metric_manager.zero_stats()
+
+        # iterate over data
+        for samples in self._data_loaders[phase]:
+            inputs, labels = self._fetch_input_label(samples)
+            inputs = inputs.to(self._device)
+            labels = labels.to(self._device)
+
+            # zero the parameter gradients
+            self._optimizer.zero_grad()
+
+            # forward
+            # track history if only in train
+            with torch.set_grad_enabled(phase == "train"):
+                outputs = self._model(inputs)
+                _, preds = torch.max(outputs, 1)
+                loss = self._criterion(outputs, labels)
+
+                # backward + optimize only if in training phase
+                if phase == "train":
+                    loss.backward()
+                    self._optimizer.step()
+                    if self._scheduler:
+                        self._scheduler.step()
+
+            # statistics
+            self._metric_manager.running_call(preds, labels, loss)
+
+        epoch_stats = self._metric_manager.epoch_call(dataset_sizes[phase], phase)
+
+        return epoch_stats
+
 
 if __name__ == "__main__":
 
@@ -264,6 +309,7 @@ if __name__ == "__main__":
             transform=data_transforms[x]
         ) for x in ["train", "val"]
     }
+    dataset["test"] = dataset["val"]
 
     net = resnet34(pretrained=True)
     in_planes = net.fc.in_features
@@ -271,7 +317,7 @@ if __name__ == "__main__":
     # net[0] = torch.nn.Conv2d(1, 64, kernel_size=(3, 3), padding=(1, 1), bias=False)
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=0.0005)
-    exp_lr_scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
+    exp_lr_scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
 
     metric_manager = MetricManager()
     metric_manager.add_stat("acc", MetricAcc())
@@ -286,12 +332,14 @@ if __name__ == "__main__":
         datasets=dataset,
         metric_manager=metric_manager,
         model_name="resnet34",
-        num_epochs=100,
+        num_epochs=20,
         batch_size=512,
         num_workers=2
     )
 
     net = trainer.train()
+    trainer.test()
 
-    epoch_stats = metric_manager.epoch_stat
-    print(epoch_stats)
+    metric_manager.zero_stats()
+    logs = metric_manager.logs
+    print(logs)
