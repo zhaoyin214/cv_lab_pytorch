@@ -5,6 +5,7 @@ from .image import show_image
 def show_landmarks(image, landmarks):
 
     image = image.copy()
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     h, w = image.shape[0 : 2]
 
     for idx in range(len(landmarks) // 2):

@@ -30,6 +30,7 @@ class LandmarkDataset(Dataset, metaclass=ABCMeta):
         # image
         image_filepath = os.path.join(self._root, self._image_list[index])
         image = cv2.imread(image_filepath)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         h, w = image.shape[: 2]
 
         # roi

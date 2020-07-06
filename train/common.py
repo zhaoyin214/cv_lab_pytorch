@@ -22,7 +22,10 @@ class BaseTrainer(object):
     optimizer: adam, sgd, rmsprop, ...
     criterion: loss
     scheduler: steplr, ...
-    log_file:
+    datasets: datasets for training, validation and test
+    metric_manager: evaluating the performance of the network
+    model_name: network
+    log_filename: log
     """
 
     _phase_list = ["train", "val"]
@@ -43,7 +46,7 @@ class BaseTrainer(object):
         device: Text="gpu"
     ) -> None:
 
-        self._model = model
+        self.set_model(model)
         self._optimizer = optimizer
         self._criterion = criterion
         self._scheduler = scheduler
@@ -60,8 +63,8 @@ class BaseTrainer(object):
         self._logger = Logger(log_filename, level="info")
 
         self._num_workers = num_workers
-        self._num_epochs = num_epochs
-        self._batch_size = batch_size
+        self.num_epochs = num_epochs
+        self.batch_size = batch_size
         self.device = device
         self._is_test = False
 
@@ -95,7 +98,7 @@ class BaseTrainer(object):
 
         # training and val
         self._data_loaders = {
-            x: torch.utils.data.DataLoader(
+            x: DataLoader(
                 dataset=datasets[x],
                 batch_size=self._batch_size,
                 shuffle=True,
@@ -105,7 +108,7 @@ class BaseTrainer(object):
 
         # test
         if datasets.get("test"):
-            self._data_loaders["test"] = torch.utils.data.DataLoader(
+            self._data_loaders["test"] = DataLoader(
                 dataset=datasets["test"],
                 batch_size=self._batch_size,
                 shuffle=False,
@@ -118,10 +121,10 @@ class BaseTrainer(object):
 
     @property
     def num_epochs(self) -> int:
-        return self._num_epoches
+        return self._num_epochs
     @num_epochs.setter
     def num_epochs(self, value: int) -> None:
-        self._num_epoches = value
+        self._num_epochs = value
 
     @property
     def batch_size(self) -> int:
