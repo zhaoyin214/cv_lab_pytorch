@@ -1,13 +1,14 @@
+from abc import ABCMeta, abstractmethod
 from typing import List, Text, Tuple, Union
+import cv2
+import numpy as np
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 from torchvision.utils import make_grid
-import numpy as np
-import os
 import torch
 
-class BaseTester(object):
-    """base tester for visualization
+class AbstractTester(metaclass=ABCMeta):
+    """abstract tester for visualization
 
     arguments:
 
@@ -18,7 +19,6 @@ class BaseTester(object):
         self,
         model: Module=None,
         dataset: Dataset=None,
-        classes: List[Text]=None,
         num_workers: int=0,
         batch_size: int=16,
         device: Text="gpu",
@@ -40,12 +40,6 @@ class BaseTester(object):
         else:
             self._dataset = None
 
-        if classes:
-            self.set_classes(classes)
-        else:
-            self._classes = None
-            self._id2class = None
-
     def set_dataset(self, dataset: Dataset) -> None:
         self._dataset = dataset
         self._data_loader = torch.utils.data.DataLoader(
@@ -64,7 +58,7 @@ class BaseTester(object):
 
     def set_device(self, device: Text) -> None:
         assert device in ["cpu", "gpu"], \
-            self._logger.warning("warning: device {} is not available".format(device))
+            "warning: device {} is not available".format(device)
         if device == "gpu" and torch.cuda.is_available():
             self._device = torch.device("cuda:0")
         else:
@@ -74,44 +68,67 @@ class BaseTester(object):
         self._batch_size = batch_size
         self._num_grid_rows = int(np.ceil(np.sqrt(self._batch_size)))
 
-    def set_classes(self, classes: List[Text]) -> None:
-        self._classes = classes
-        self._id2class = {
-            idx: term for idx, term in enumerate(classes)
-        }
-
     def __call__(self, x: torch.Tensor):
         preds = self._model(x)
         return preds
+
+    def _fetch_input_label(self, samples):
+        return samples
 
     def _post_proc(
         self,
         x: torch.Tensor,
         preds: torch.Tensor,
         labels: torch.Tensor
-    ) -> Tuple[np.ndarray, List[Text], List[Text]]:
+    ) -> Tuple:
+        return self._proc_batch(x, preds, labels)
 
+    def _proc_batch(
+        self,
+        x: torch.Tensor,
+        preds: torch.Tensor,
+        labels: torch.Tensor
+    ) -> Tuple:
+        preds = self._proc_pred(preds)
+        labels = self._proc_label(labels)
+
+        # tensor -> array, with shape (b, h, w, c)
+        x = x.cpu().numpy()
+        x = x.transpose(0, 2, 3, 1)
+        for idx in range(x.shape[0]):
+            x[idx, :, :, :] = self._proc_image(
+                x[idx, :, :, :],
+                preds[idx],
+                labels[idx]
+            )
+        # array -> tensor, with shape (b, c, h, w)
+        x = x.transpose(0, 3, 1, 2)
+        x = torch.from_numpy(x)
+        # make a grid
         x = self._make_grid(x)
-        preds = torch.argmax(preds, dim=1)
-        preds = [
-            self._id2class[int(pred)] for pred in preds
-        ]
-        labels = [
-            self._id2class[int(label)] for label in labels
-        ]
+
         return x, preds, labels
 
-    def _make_grid(self, x: torch.Tensor) -> np.ndarray:
+    @abstractmethod
+    def _proc_image(
+        self, image: np.ndarray, pred, label,
+    ) -> np.ndarray:
+        return image
 
+    @abstractmethod
+    def _proc_pred(self, preds: torch.Tensor) -> List:
+        pass
+
+    @abstractmethod
+    def _proc_label(self, labels: torch.Tensor) -> List:
+        pass
+
+    def _make_grid(self, x: torch.Tensor) -> np.ndarray:
         x = make_grid(x, nrow=self._num_grid_rows, padding=0)
         x = x.cpu().numpy().transpose((1, 2, 0))
         x = self._std * x + self._mean
         x = np.clip(x, 0, 1)
-
         return x
-
-    def _fetch_input_label(self, samples):
-        return samples
 
     def batch_pred(self) -> np.ndarray:
 
@@ -127,12 +144,42 @@ class BaseTester(object):
             except StopIteration as e:
                 raise e
 
+class ClassTester(AbstractTester):
+
+    def set_classes(self, classes: List[Text]) -> None:
+        self._classes = classes
+        self._id2class = {
+            idx: term for idx, term in enumerate(classes)
+        }
+
+    def _proc_image(
+        self,
+        image: np.ndarray,
+        pred: Text,
+        label: Text,
+    ) -> np.ndarray:
+        return image
+
+    def _proc_pred(self, preds: torch.Tensor) -> List:
+        """prediction, id -> class"""
+        preds = torch.argmax(preds, dim=1)
+        preds = [
+            self._id2class[int(pred)] for pred in preds
+        ]
+        return preds
+
+    def _proc_label(self, labels: torch.Tensor) -> List:
+        """label, id -> class"""
+        labels = [
+            self._id2class[int(label)] for label in labels
+        ]
+        return labels
+
 if __name__ == "__main__":
 
     from torchvision import datasets, transforms
     from torchvision.models import resnet18, resnet34
     from torch.optim.lr_scheduler import StepLR
-    import cv2
     import os
 
     mean = [0.485, 0.456, 0.406]
@@ -158,9 +205,8 @@ if __name__ == "__main__":
     )
     classes = ["ant", "bee"]
 
-    tester = BaseTester(
-        net, dataset, classes
-    )
+    tester = ClassTester(net, dataset)
+    tester.set_classes(classes)
 
     for image_grid, preds, labels in tester.batch_pred():
         image_grid *= 255
