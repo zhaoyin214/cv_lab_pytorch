@@ -89,14 +89,12 @@ class AbstractTester(metaclass=ABCMeta):
         preds: torch.Tensor,
         labels: torch.Tensor
     ) -> Tuple:
+        x = self._proc_image(x)
         preds = self._proc_pred(preds)
         labels = self._proc_label(labels)
-
-        # tensor -> array, with shape (b, h, w, c)
-        x = x.cpu().numpy()
-        x = x.transpose(0, 2, 3, 1)
+        # label images
         for idx in range(x.shape[0]):
-            x[idx, :, :, :] = self._proc_image(
+            x[idx, :, :, :] = self._extra_proc_image(
                 x[idx, :, :, :],
                 preds[idx],
                 labels[idx]
@@ -109,8 +107,16 @@ class AbstractTester(metaclass=ABCMeta):
 
         return x, preds, labels
 
-    @abstractmethod
-    def _proc_image(
+    def _proc_image(self, x) -> np.ndarray:
+        """tensor -> array, with shape (b, h, w, c)"""
+        x = x.cpu().numpy()
+        x = x.transpose(0, 2, 3, 1)
+        x = self._std * x + self._mean
+        x = np.clip(x, 0, 1)
+        x *= 255
+        return x.astype(np.uint8)
+
+    def _extra_proc_image(
         self, image: np.ndarray, pred, label,
     ) -> np.ndarray:
         return image
@@ -126,9 +132,8 @@ class AbstractTester(metaclass=ABCMeta):
     def _make_grid(self, x: torch.Tensor) -> np.ndarray:
         x = make_grid(x, nrow=self._num_grid_rows, padding=0)
         x = x.cpu().numpy().transpose((1, 2, 0))
-        x = self._std * x + self._mean
-        x = np.clip(x, 0, 1)
-        return x
+        x = x.astype(np.uint8)
+        return cv2.cvtColor(x, cv2.COLOR_RGB2BGR)
 
     def batch_pred(self) -> np.ndarray:
 
@@ -152,12 +157,22 @@ class ClassTester(AbstractTester):
             idx: term for idx, term in enumerate(classes)
         }
 
-    def _proc_image(
+    def _extra_proc_image(
         self,
         image: np.ndarray,
         pred: Text,
         label: Text,
     ) -> np.ndarray:
+        text = "pred: {}, gt: {}".format(pred, label)
+        image = image.copy()
+        image = cv2.putText(
+            img=image, text=text, org=(10, 20),
+            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale=0.5,
+            color=(255, 255, 255),
+            thickness=1,
+            lineType=cv2.LINE_AA
+        )
         return image
 
     def _proc_pred(self, preds: torch.Tensor) -> List:
@@ -209,10 +224,7 @@ if __name__ == "__main__":
     tester.set_classes(classes)
 
     for image_grid, preds, labels in tester.batch_pred():
-        image_grid *= 255
-        image_grid = image_grid.astype(np.uint8)
-        image_grid = cv2.cvtColor(image_grid, cv2.COLOR_RGB2BGR)
         cv2.imshow("grid", image_grid)
-        cv2.waitKey(20)
+        cv2.waitKey(2000)
 
     cv2.destroyAllWindows()
