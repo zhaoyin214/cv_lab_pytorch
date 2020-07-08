@@ -155,7 +155,8 @@ class ToTensor(ProcLandmarks):
     ) -> LandmarksWrapper:
 
         landmarks_wrapper.landmarks = torch.from_numpy(
-            landmarks_wrapper.landmarks).type(torch.FloatTensor)
+            landmarks_wrapper.landmarks
+        ).type(torch.FloatTensor)
 
         return landmarks_wrapper
 

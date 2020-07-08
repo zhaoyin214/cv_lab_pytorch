@@ -21,7 +21,7 @@ class AbstractTester(metaclass=ABCMeta):
         dataset: Dataset=None,
         num_workers: int=0,
         batch_size: int=16,
-        device: Text="gpu",
+        device: Text="cpu",
         mean: Union[int, List]=[0.485, 0.456, 0.406],
         std: Union[int, List]=[0.229, 0.224, 0.225]
     ) -> None:

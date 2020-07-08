@@ -2,14 +2,12 @@ import cv2
 
 from .image import show_image
 
-def show_landmarks(image, landmarks):
-
+def draw_landmarks(image, landmarks):
     image = image.copy()
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     h, w = image.shape[0 : 2]
 
     for idx in range(len(landmarks) // 2):
-
         x = int(landmarks[2 * idx] * w)
         y = int(landmarks[2 * idx + 1] * h)
         cv2.circle(
@@ -20,5 +18,8 @@ def show_landmarks(image, landmarks):
             thickness=-1,
             lineType=cv2.FILLED
         )
+    return image
 
+def show_landmarks(image, landmarks):
+    image = draw_landmarks(image, landmarks)
     show_image(image, "landmarks")

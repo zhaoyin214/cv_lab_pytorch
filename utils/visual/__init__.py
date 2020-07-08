@@ -1,2 +1,2 @@
 from .image import show_image
-from .landmark import show_landmarks
+from .landmark import draw_landmarks, show_landmarks

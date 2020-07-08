@@ -31,11 +31,12 @@ if __name__ == "__main__":
         "train": Compose([
             Resize((500, 500)),
             RandomBlur(),
-            RandomHorizontalFlip(),
+            # RandomHorizontalFlip(),
             RandomCrop((450, 450)),
             RandomRotate(),
             RandomScale(),
             Resize((224, 224)),
+            # Show(),
             ToTensor(),
             Normalize()
         ]),
@@ -53,7 +54,11 @@ if __name__ == "__main__":
     for phase in ["train", "val", "test"]:
         datasets[phase].transform = data_transforms[phase]
 
-    backbone_ = "resnet18"
+    # for idx in range(10):
+    #     sample = datasets["train"][idx]
+
+    # backbone_ = "resnet18"
+    backbone_ = "resnet34"
     # backbone_ = "resnet50"
     # backbone_ = "resnet101"
     backbone = BackBoneFactory()(backbone_)
@@ -76,13 +81,13 @@ if __name__ == "__main__":
         datasets=datasets,
         metric_manager=metric_manager,
         model_name="landmark_baseline_{}".format(backbone_),
-        num_epochs=100,
+        num_epochs=20,
         batch_size=256,
         num_workers=8
     )
 
     net = trainer.train()
-    net = trainer.test()
+    trainer.test()
 
     logs = metric_manager.logs
     print(logs)
