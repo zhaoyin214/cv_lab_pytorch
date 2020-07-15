@@ -58,9 +58,10 @@ if __name__ == "__main__":
     #     sample = datasets["train"][idx]
 
     # backbone_ = "resnet18"
-    backbone_ = "resnet34"
+    # backbone_ = "resnet34"
     # backbone_ = "resnet50"
     # backbone_ = "resnet101"
+    backbone_ = "resnet152"
     backbone = BackBoneFactory()(backbone_)
     net = BaselineNet(backbone)
     print(net)
@@ -82,7 +83,7 @@ if __name__ == "__main__":
         metric_manager=metric_manager,
         model_name="landmark_baseline_{}".format(backbone_),
         num_epochs=20,
-        batch_size=256,
+        batch_size=64,
         num_workers=8
     )
 

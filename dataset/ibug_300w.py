@@ -52,10 +52,10 @@ if __name__ == "__main__":
 
     transform = Compose([
         Resize((500, 500)),
+        RandomRotate(max_angle=30),
         RandomBlur(),
         RandomHorizontalFlip(),
         RandomCrop((450, 450)),
-        RandomRotate(),
         RandomScale(),
         Resize((450, 450)),
         Show(),

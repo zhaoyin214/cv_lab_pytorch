@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     # filepath = "./output/model/best_landmark_baseline_resnet18-epoch_12-val_loss_0.0034.pth"
     # backbone_ = "resnet18"
-    filepath = "./output/model/best_landmark_baseline_resnet34-epoch_10-val_loss_0.0024.pth"
+    filepath = "./output/model/best_landmark_baseline_resnet34_criterion_smooth_l1-epoch_19-val_loss_0.0013.pth"
     backbone_ = "resnet34"
     # backbone_ = "resnet50"
     # backbone_ = "resnet101"

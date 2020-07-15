@@ -221,7 +221,7 @@ class RandomRotate(RandomTransformer):
        with a given probability
        perform the same transformation with landmarks
     """
-    def __init__(self, max_angle: float=10, prob: float=0.1) -> None:
+    def __init__(self, max_angle: float=10, prob: float=0.3) -> None:
         super(RandomRotate, self).__init__(prob)
         rotate = RandomRotate_(max_angle)
         self.add_op(rotate)
@@ -302,6 +302,10 @@ if __name__ == "__main__":
     sample = ibug_300w["train"][2]
     show_landmarks(sample["image"], sample["landmarks"])
 
+    random_rot = RandomRotate(max_angle=30)
+    sample = random_rot(sample)
+    show_landmarks(sample["image"], sample["landmarks"])
+
     size = (500, 500)
     resize = Resize(size)
     sample = resize(sample)
@@ -309,10 +313,6 @@ if __name__ == "__main__":
 
     random_crop = RandomCrop((450, 450))
     sample = random_crop(sample)
-    show_landmarks(sample["image"], sample["landmarks"])
-
-    random_rot = RandomRotate()
-    sample = random_rot(sample)
     show_landmarks(sample["image"], sample["landmarks"])
 
     random_scale = RandomScale()

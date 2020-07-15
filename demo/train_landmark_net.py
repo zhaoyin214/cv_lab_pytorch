@@ -18,24 +18,24 @@ def train(nets, criterions, lr, num_epochs, batch_size):
     datasets = load_ibug_300w()
     data_transforms = {
         "train": Compose([
-            Resize((500, 500)),
-            RandomBlur(),
-            # RandomHorizontalFlip(),
-            RandomCrop((450, 450)),
-            RandomRotate(),
-            RandomScale(),
-            Resize((224, 224)),
+            Resize(output_size=(500, 500)),
+            RandomRotate(max_angle=30, prob=0.8),
+            RandomHorizontalFlip(),
+            RandomBlur(prob=0.3),
+            RandomCrop(output_size=(450, 450), prob=0.8),
+            RandomScale(prob=0.5),
+            Resize(output_size=(224, 224)),
             # Show(),
             ToTensor(),
             Normalize()
         ]),
         "val": Compose([
-            Resize((224, 224)),
+            Resize(output_size=(224, 224)),
             ToTensor(),
             Normalize()
         ]),
         "test": Compose([
-            Resize((224, 224)),
+            Resize(output_size=(224, 224)),
             ToTensor(),
             Normalize()
         ]),
@@ -50,7 +50,7 @@ def train(nets, criterions, lr, num_epochs, batch_size):
         for nkey, net in nets.items():
             # train
             optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-            exp_lr_scheduler = StepLR(optimizer, step_size=10, gamma=0.5)
+            exp_lr_scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
             trainer = LandmarkTrainer(
                 net,
                 optimizer,
@@ -73,7 +73,7 @@ def train(nets, criterions, lr, num_epochs, batch_size):
                 cv2.imshow("grid", image)
                 cv2.waitKey(2000)
                 cv2.imwrite(
-                    "./output/demo/landmark_baseline_{}_criterion_{}_{}".format(
+                    "./output/demo/landmark_baseline_{}_criterion_{}_{}.png".format(
                         nkey, ckey, cnt
                     ),
                     image
@@ -96,8 +96,8 @@ if __name__ == "__main__":
         "mae": torch.nn.L1Loss(),
         "smooth_l1": torch.nn.SmoothL1Loss(),
     }
-    lr = 0.0005
+    lr = 5e-4
     num_epochs = 20
-    batch_size = 128
+    batch_size = 64
 
     train(nets, criterions, lr, num_epochs, batch_size)
